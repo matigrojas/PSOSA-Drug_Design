@@ -4,6 +4,7 @@ import random
 import numpy as np
 
 from algorithm.algorithm import Algorithm
+from rdkit import Chem
 from algorithm.modified_simulated_annealing import SimulatedAnnealing
 from operators.crossover import Crossover
 from operators.mutation import Mutation
@@ -33,7 +34,7 @@ class ParticleSwarmSA(Algorithm):
         self.smiles_dir = save_smiles_dir
 
         self.bank = []
-        self.bank_size = bank_size
+        self.bank_size = self.swarm_size*3
         
         self.replace_mutation = replace_mutation
         self.add_mutation = add_mutation
@@ -49,25 +50,41 @@ class ParticleSwarmSA(Algorithm):
         self.iterations = 0
         self.convergence_curve = []
 
+        self.seen_inchikey = set()
+
         self.ls_init_cc = []
         self.ls_cc = []
 
     def create_initial_solutions(self)->List[Solution]:
-        self.bank = self.problem.load_bank()
+        self.bank = self.problem.load_bank(max_molecules=self.bank_size)
         return self.bank
     
     def evaluate(self, solution_list: List[Solution])->List[Solution]:
         return [self.problem.evaluate(sol) for sol in solution_list]
+    
+    def related_molecules(self):
+        print("Computing Related Drugs")
+        dsk = 'OC[CH](O)[CH](O)[CH](O)[CH](O)[CH](O)C[S+]1C[CH](O)[CH](O)[CH]1CO'
+        acarbose = '[H]C(=O)[C@H](O)[C@@H](O)[C@]([H])(O[C@@]1([H])O[C@H](CO)[C@@]([H])(O[C@H]2O[C@H](C)[C@@H](N[C@@]3([H])C=C(CO)[C@@H](O)[C@H](O)[C@H]3O)[C@H](O)[C@H]2O)[C@H](O)[C@H]1O)[C@H](O)CO'
+        miglitol = 'OCCN1C[C@H](O)[C@@H](O)[C@H](O)[C@H]1CO'
+
+        return [self.problem.evaluate(self.problem.create_solution(rel_mol))
+                for rel_mol in [dsk, acarbose, miglitol]]
+
     
     def init_progress(self) -> None:
         self.evaluations = self.bank_size
         self.init_global_best()
         self.init_particle_best(self.solutions)
         self.solutions = self.solutions[:self.swarm_size]
-        self.solutions = sorted(self.bank,key=lambda x:x.objectives[0], reverse=True)
+        self.solutions.extend(self.related_molecules())
+        self.solutions = sorted(self.solutions,key=lambda x:x.objectives[0], reverse=True)
+
+        for sol in self.solutions:
+            self.seen_inchikey.add(Chem.inchi.MolToInchiKey(sol.attributes['mol']))
 
         self.convergence_curve.append(self.global_best.objectives[0])
-        print(f"Evaluations: {self.evaluations}, Best Fitness Value: {self.global_best.objectives[0]}, QED: {self.global_best.attributes['QED']}, SAS: {self.global_best.attributes['SAS']}")
+        print(f"Evaluations: {self.evaluations}, Best Fitness Value: {self.global_best.objectives[0]}, QED: {self.global_best.attributes['QED']}, SAS: {self.global_best.attributes['SAS']}, AFF: {self.global_best.attributes['Affinity']}")
         
         self.minimum_fit = self.global_best.objectives[0] * 0.5
 
@@ -77,23 +94,16 @@ class ParticleSwarmSA(Algorithm):
             pass
 
         with open(self.smiles_dir,'w+') as f:
-            f.write('smiles;fitness;QED;SAS\n')
+            f.write('smiles;fitness;QED;SAS;Affinity\n')
 
     def update_progress(self) -> None:
         self.iterations += 1
         self.convergence_curve.append(self.global_best.objectives[0])
         self.minimum_fit *= 1.1 if self.minimum_fit < (self.global_best.objectives[0] * 0.9) else 1
-        print(f"Evaluations: {self.evaluations}, Best Fitness Value: {self.global_best.objectives[0]}, QED: {self.global_best.attributes['QED']}, SAS: {self.global_best.attributes['SAS']}")
+        print(f"Evaluations: {self.evaluations}, Best Fitness Value: {self.global_best.objectives[0]}, QED: {self.global_best.attributes['QED']}, SAS: {self.global_best.attributes['SAS']}, AFF: {self.global_best.attributes['Affinity']}")
 
-        #random_solution = random.randint(0,self.swarm_size-1)
-        #self.solutions[random_solution] = self.local_search(random.choice(self.bank))
         self.ls_init_cc.append(self.global_best.objectives[0])
-        #self.replacement(self.local_search(self.global_best),random_solution)
-
-        #if self.iterations % 5 == 0:
-            #self.bank.extend(self.solutions)
-            #self.solutions = self.bank[:self.swarm_size]
-            #self.bank = self.bank[self.swarm_size:]
+        
 
     def local_search(self, solution):
         ls_alg = SimulatedAnnealing(problem = self.problem, init_solution=solution, max_evaluations=10, min_fitness=self.minimum_fit)
@@ -134,7 +144,7 @@ class ParticleSwarmSA(Algorithm):
         generated = 0
         generation_error = 0
         mol = None
-        while generated < 60:
+        while generated < 10:
             if generation_error == 180:
                 #Logger.warning("Problems in mutating solution by replace mutation.")
                 break
@@ -143,10 +153,11 @@ class ParticleSwarmSA(Algorithm):
                                         self.remove_mutation,
                                         self.add_mutation])
                 offspring, mol = mut_op.execute(solution)
-                if mol:
+                if mol and Chem.inchi.MolToInchiKey(mol) not in self.seen_inchikey:
                     generated += 1
                     offspring.attributes['mol'] = mol
                     mutation_offspring.append(offspring)
+                    self.seen_inchikey.add(Chem.inchi.MolToInchiKey(mol))
                 else:
                     generation_error += 1
             except PermissionError:
@@ -158,14 +169,15 @@ class ParticleSwarmSA(Algorithm):
         for parents in parents_set:
             generation_error = 0
             mol = None
-            while generation_error < 30 and not mol:    
+            while generation_error < 10 and not mol:    
                 for ring_bool in [True, False]:
                     try:                
                         offspring, mol = self.crossover_operator.execute(parents, 
                                                                             ring_bool= ring_bool)
-                        if mol:
+                        if mol and Chem.inchi.MolToInchiKey(mol) not in self.seen_inchikey:
                             offspring.attributes['mol'] = mol
                             crossover_offspring.append(offspring)
+                            self.seen_inchikey.add(Chem.inchi.MolToInchiKey(mol))
                             break
                         else:
                             generation_error += 1
@@ -182,13 +194,10 @@ class ParticleSwarmSA(Algorithm):
             for new_particle in new_particles:
                 
                 #Write the new valid particle to the csv, even if it is not the best
-                if new_particle.objectives[0] > self.minimum_fit:
-                    with open(self.smiles_dir,'a+') as f: 
-                        f.write(f"{new_particle.variables};{new_particle.objectives[0]};{new_particle.attributes['QED']};{new_particle.attributes['SAS']}\n")
-            
-            #self.bank.extend(new_particles)
-            #self.bank.sort(key= lambda x:x.objectives[0], reverse=True)
-            #self.bank = self.bank[:self.bank_size]
+                #if new_particle.objectives[0] > self.minimum_fit:
+                with open(self.smiles_dir,'a+') as f: 
+                    f.write(f"{new_particle.variables};{new_particle.objectives[0]};{new_particle.attributes['QED']};{new_particle.attributes['SAS']};{new_particle.attributes['Affinity']}\n")
+                    self.seen_inchikey.add(Chem.inchi.MolToInchiKey(new_particle.attributes['mol']))
 
     def update_global_best(self):
         best_current_particle = sorted(self.solutions,key= lambda x:x.objectives[0], reverse=True)[0]
