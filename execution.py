@@ -13,7 +13,7 @@ algorithm = ParticleSwarmSA(
     replace_mutation=ReplaceMutation(1.),
     crossover=SmilesCrossover(1.),
     max_evaluations=10000,
-    save_smiles_dir='./results/pruebaPSOSA_dock.csv',
+    save_smiles_dir='./results/pruebaPSOSA_dock_2.csv',
 )
 
 algorithm.run()

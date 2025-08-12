@@ -33,7 +33,7 @@ def run_vina_docking(center, box_size, rigid, flex, pdbqt_path, return_dict):
                                     spacing=1)
 
         vina_exec.set_ligand_from_file(pdbqt_path)
-        vina_exec.dock(exhaustiveness=4, max_evals=20000)
+        vina_exec.dock(exhaustiveness=6, max_evals=20000)
         affinity = vina_exec.energies()[0][0]
         return_dict["affinity"] = affinity if affinity < 0.0 else 0.0
     except Exception as e:
@@ -131,8 +131,8 @@ class DiabetesDocking(Problem):
                 solution.attributes['SAS'] = 0
                 solution.attributes['QED'] = 0
 
-            solution.objectives[0] = (0.245 * solution.attributes['QED']) 
-            solution.objectives[0] += (0.005 * (1 - (solution.attributes['SAS'] / 10)))
+            solution.objectives[0] = (0.2 * solution.attributes['QED']) 
+            solution.objectives[0] += (0.05 * (1 - (solution.attributes['SAS'] / 10)))
 
             try:
                 mols, label = smiles2pdbqt(solution.variables, labels="./temp/temporal_smile")
