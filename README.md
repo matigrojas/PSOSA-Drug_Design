@@ -4,8 +4,8 @@ Código del trabajo "A Memetic Genetic Particle Swarm Optimization for Druglike 
 
 El trabajo fue publicado en la revista científica IEEE Latin America Transactions, disponible en (https://latamt.ieeer9.org/index.php/transactions/article/view/9254).
 
-[!IMPORTANT]
-El código fue actualizado para incluir docking a un blanco molecular específico, como parte de una extensión enviada a las Pre Jornadas de Jovenes en Investigación de la UNCUYO/AUGM
+> [!IMPORTANT]
+> El código fue actualizado para incluir docking a un blanco molecular específico, como parte de una extensión enviada a las Pre Jornadas de Jovenes en Investigación de la UNCUYO/AUGM
 
 -------------
 
@@ -13,5 +13,5 @@ Code related to the article "A Memetic Genetic Particle Swarm Optimization for D
 
 The manuscript is published in the Journal IEEE Latin America Transactions, available in (https://latamt.ieeer9.org/index.php/transactions/article/view/9254).
 
-[!IMPORTANT]
-The code was updated to include a docking evaluation module, for measuring binding activity to an specific molecular target. This was sent to Pre Jornadas de Jovenes en Investigación de la UNCUYO/AUGM.
+> [!IMPORTANT]
+> The code was updated to include a docking evaluation module, for measuring binding activity to an specific molecular target. This was sent to Pre Jornadas de Jovenes en Investigación de la UNCUYO/AUGM.
